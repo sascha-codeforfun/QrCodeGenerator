@@ -1,0 +1,73 @@
+name: Build & Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write        # attach assets to the release
+  id-token: write        # sign build provenance (OIDC)
+  attestations: write    # write the provenance attestation
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Compute version from release tag
+        id: ver
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.release.tag_name }}"
+          if ($tag) { $v = $tag.TrimStart('v') } else { $v = "0.0.0" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Publish self-contained single-file exe (all of .NET bundled)
+        run: >
+          dotnet publish QrCodeGenerator.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:Version=${{ steps.ver.outputs.version }}
+          -o publish
+
+      - name: Stage exe + SHA256 checksum
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item publish/QrCodeGenerator.exe release/
+          $hash = (Get-FileHash release/QrCodeGenerator.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  QrCodeGenerator.exe" | Set-Content -Path release/QrCodeGenerator.exe.sha256 -Encoding ascii
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release/QrCodeGenerator.exe
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QrCodeGenerator-win-x64
+          path: release/*
+
+      - name: Attach assets to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release upload ${{ github.event.release.tag_name }}
+          release/QrCodeGenerator.exe
+          release/QrCodeGenerator.exe.sha256
+          --clobber
