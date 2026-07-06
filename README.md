@@ -99,6 +99,13 @@ still scans, and check it with your phone before relying on it.
 MIT — see [LICENSE.txt](LICENSE.txt).
 QR generation uses [QRCoder](https://github.com/codebude/QRCoder) (MIT).
 
+## Trademarks
+
+"QR Code" is a registered trademark of DENSO WAVE INCORPORATED. This project is
+not affiliated with, sponsored by, or endorsed by Denso Wave. The trademark
+applies only to the term "QR Code"; the underlying technology is open and free
+to use.
+
 ## Built with Claude
 
 Almost this entire app — features, workflow, this README — was created from a handful of
