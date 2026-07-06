@@ -64,6 +64,38 @@ public partial class MainWindow : Window
         }
     }
 
+    private void AddToBatchButton_Click(object sender, RoutedEventArgs e)
+    {
+        string url = (UrlTextBox.Text ?? string.Empty).Trim();
+        if (url.Length == 0)
+        {
+            StatusText.Text = "Nothing to add — the URL box is empty.";
+            return;
+        }
+
+        string[] existingLines = (BatchUrlsTextBox.Text ?? string.Empty)
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        // Guard against duplicates (e.g. an accidental double-click).
+        foreach (string line in existingLines)
+        {
+            if (string.Equals(line.Trim(), url, StringComparison.Ordinal))
+            {
+                StatusText.Text = "Already in the Batch → ZIP list — not added again.";
+                return;
+            }
+        }
+
+        string existing = BatchUrlsTextBox.Text ?? string.Empty;
+        if (existing.Length > 0 && !existing.EndsWith("\n") && !existing.EndsWith("\r"))
+            existing += Environment.NewLine;
+
+        BatchUrlsTextBox.Text = existing + url + Environment.NewLine;
+        BatchUrlsTextBox.CaretIndex = BatchUrlsTextBox.Text.Length;
+
+        StatusText.Text = $"Added to the Batch → ZIP list ({existingLines.Length + 1} URL(s) queued).";
+    }
+
     private void TryAutoLoadSchema()
     {
         try
@@ -266,6 +298,8 @@ public partial class MainWindow : Window
         ImagePanel.Visibility = mode == 1 ? Visibility.Visible : Visibility.Collapsed;
         FontPanel.Visibility = mode == 2 ? Visibility.Visible : Visibility.Collapsed;
         SizePanel.Visibility = mode == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+        UpdateGlyphPreview();
     }
 
     private void BrowseFontButton_Click(object sender, RoutedEventArgs e)
@@ -281,6 +315,7 @@ public partial class MainWindow : Window
             FontPathTextBox.Text = dialog.FileName;
             FontPathTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27));
             StatusText.Text = "Tip: use High (H) error correction with a center glyph so the code still scans.";
+            UpdateGlyphPreview();
         }
     }
 
@@ -289,6 +324,42 @@ public partial class MainWindow : Window
         _fontPath = null;
         FontPathTextBox.Text = "No font selected";
         FontPathTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80));
+        UpdateGlyphPreview();
+    }
+
+    private void GlyphInput_Changed(object sender, TextChangedEventArgs e) => UpdateGlyphPreview();
+
+    /// <summary>Renders a small live vector preview of the current glyph(s) next to the input.</summary>
+    private void UpdateGlyphPreview()
+    {
+        if (GlyphPreviewImage == null) return; // not yet built during XAML init
+
+        if (CenterMode != 2 || string.IsNullOrEmpty(_fontPath)
+            || string.IsNullOrWhiteSpace(FontCharsTextBox.Text))
+        {
+            GlyphPreviewImage.Source = null;
+            return;
+        }
+
+        try
+        {
+            PathGeometry geo = BuildGlyphGeometry(_fontPath!, FontCharsTextBox.Text);
+            geo.FillRule = FillRule.Nonzero;
+
+            Brush brush;
+            try { brush = new SolidColorBrush(ParseColor(GlyphColorTextBox.Text)); }
+            catch { brush = Brushes.Black; }
+
+            var drawing = new GeometryDrawing(brush, null, geo);
+            var image = new DrawingImage(drawing);
+            image.Freeze();
+            GlyphPreviewImage.Source = image;
+        }
+        catch
+        {
+            // Invalid font / no matching glyph / whitespace: just clear the swatch, no dialog.
+            GlyphPreviewImage.Source = null;
+        }
     }
 
     private int CenterMode => CenterModeComboBox?.SelectedIndex ?? 0;
@@ -503,6 +574,7 @@ public partial class MainWindow : Window
 
     private static byte[] OverlayLogoOnPng(byte[] qrPngBytes, string logoPath, double sizePercent)
     {
+        RequireFile(logoPath, "center image");
         BitmapSource qr = LoadBitmap(qrPngBytes);
         BitmapSource logo = LoadBitmapFromFile(logoPath);
 
@@ -536,6 +608,7 @@ public partial class MainWindow : Window
 
     private static string EmbedLogoInSvg(string svg, string logoPath, double sizePercent)
     {
+        RequireFile(logoPath, "center image");
         (double w, double h) = ReadSvgDimensions(svg);
 
         double box = Math.Min(w, h) * (sizePercent / 100.0);
@@ -593,18 +666,42 @@ public partial class MainWindow : Window
     /// </summary>
     private static PathGeometry BuildGlyphGeometry(string fontPath, string text)
     {
-        GlyphTypeface gtf;
+        RequireFile(fontPath, "font file");
+
+        // Try the original path first.
+        if (TryLoadGlyphTypeface(fontPath, out GlyphTypeface gtf))
+            return BuildGlyphGeometry(gtf, text);
+
+        // Fallback: some drives/paths (e.g. a font at the root of a secondary drive)
+        // trip up WPF's font URI resolver and it throws internally. Copy the file to a
+        // temp location on the system drive and load from there. Keep the temp file
+        // alive until the outline is fully extracted, then clean it up.
+        string temp = Path.Combine(
+            Path.GetTempPath(),
+            "qrgen_" + Guid.NewGuid().ToString("N") + Path.GetExtension(fontPath));
         try
         {
-            gtf = new GlyphTypeface(new Uri(fontPath));
+            File.Copy(fontPath, temp, overwrite: true);
+            if (TryLoadGlyphTypeface(temp, out GlyphTypeface gtfTemp))
+                return BuildGlyphGeometry(gtfTemp, text);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
-            throw new InvalidOperationException(
-                "Couldn't read that font. WPF supports TTF/OTF/TTC, but not WOFF/WOFF2 — " +
-                $"convert the font to TTF or OTF first. ({ex.Message})");
+            // fall through to the friendly error below
+        }
+        finally
+        {
+            try { if (File.Exists(temp)) File.Delete(temp); } catch { /* best effort */ }
         }
 
+        throw new InvalidOperationException(
+            "Couldn't read that font. Make sure it's an intact TTF/OTF/TTC file " +
+            "(WOFF/WOFF2 are not supported — convert them first).");
+    }
+
+    /// <summary>Extracts the combined outline for the given characters from a loaded typeface.</summary>
+    private static PathGeometry BuildGlyphGeometry(GlyphTypeface gtf, string text)
+    {
         const double emSize = 1000.0;
         var group = new GeometryGroup();
         double advance = 0;
@@ -636,6 +733,32 @@ public partial class MainWindow : Window
                 "Those characters produced no visible outline (e.g. only whitespace).");
 
         return combined;
+    }
+
+    /// <summary>
+    /// Tries to load a glyph typeface without throwing: first via the forgiving
+    /// Fonts.GetTypefaces path, then via the (fragile) direct constructor.
+    /// </summary>
+    private static bool TryLoadGlyphTypeface(string fontPath, out GlyphTypeface gtf)
+    {
+        gtf = null!;
+
+        Uri fontUri;
+        try { fontUri = new Uri(fontPath, UriKind.Absolute); }
+        catch { return false; }
+
+        try
+        {
+            foreach (Typeface tf in Fonts.GetTypefaces(fontUri))
+                if (tf.TryGetGlyphTypeface(out GlyphTypeface g)) { gtf = g; return true; }
+        }
+        catch
+        {
+            // fall through to direct construction
+        }
+
+        try { gtf = new GlyphTypeface(fontUri); return true; }
+        catch { return false; }
     }
 
     /// <summary>Matrix that scales/centers a geometry's bounds into a target square, preserving aspect.</summary>
@@ -802,6 +925,14 @@ public partial class MainWindow : Window
         if (value < 5 || value > 40)
             throw new InvalidOperationException("Logo size should be between 5% and 40% so the code stays scannable.");
         return value;
+    }
+
+    private static void RequireFile(string path, string what)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            throw new InvalidOperationException(
+                $"The selected {what} no longer exists — it may have been moved, renamed, or deleted. " +
+                "Pick it again with Browse….");
     }
 
     private static string GuessImageMime(string path)

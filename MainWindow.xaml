@@ -4,6 +4,7 @@
         Title="QR Code Generator" Height="760" Width="820"
         MinHeight="680" MinWidth="760"
         WindowStartupLocation="CenterScreen"
+        Icon="/Assets/app.ico"
         Background="#FAFAFA"
         FontFamily="Segoe UI" FontSize="13">
 
@@ -191,16 +192,26 @@
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="12"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Text="Character(s)" Style="{StaticResource Label}"/>
-                                    <TextBox x:Name="FontCharsTextBox" Text=""/>
+                                    <TextBox x:Name="FontCharsTextBox" Text=""
+                                             TextChanged="GlyphInput_Changed"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="2" Width="120">
+                                <Border Grid.Column="2" VerticalAlignment="Bottom"
+                                        Width="34" Height="34" Background="White"
+                                        BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4"
+                                        ToolTip="Live preview of the glyph">
+                                    <Image x:Name="GlyphPreviewImage" Margin="4" Stretch="Uniform"/>
+                                </Border>
+                                <StackPanel Grid.Column="4" Width="120">
                                     <TextBlock Text="Glyph color (hex)" Style="{StaticResource Label}"/>
-                                    <TextBox x:Name="GlyphColorTextBox" Text="#000000"/>
+                                    <TextBox x:Name="GlyphColorTextBox" Text="#000000"
+                                             TextChanged="GlyphInput_Changed"/>
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
@@ -211,8 +222,11 @@
                             <TextBox x:Name="LogoSizeTextBox" Text="22"/>
                         </StackPanel>
 
-                        <Button Content="Generate preview" Click="GenerateButton_Click"
-                                HorizontalAlignment="Left" Margin="0,16,0,0"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                            <Button Content="Generate preview" Click="GenerateButton_Click"/>
+                            <Button Content="Add to batch list →" Background="#7C3AED"
+                                    Click="AddToBatchButton_Click"/>
+                        </StackPanel>
 
                         <TextBlock x:Name="StatusText" Margin="0,18,0,0" TextWrapping="Wrap"
                                    Foreground="#6B7280"/>
@@ -237,17 +251,31 @@
                         </Grid>
                     </Border>
 
-                    <StackPanel Grid.Row="1" Margin="0,12,0,0">
-                        <TextBlock Text="Save as" Style="{StaticResource Label}"/>
-                        <StackPanel Orientation="Horizontal">
-                            <Button x:Name="SavePngButton" Content="Save .png"
-                                    Style="{StaticResource SecondaryButton}"
-                                    Click="SavePngButton_Click" IsEnabled="False"/>
-                            <Button x:Name="SaveSvgButton" Content="Save .svg"
-                                    Style="{StaticResource SecondaryButton}"
-                                    Click="SaveSvgButton_Click" IsEnabled="False"/>
+                    <Grid Grid.Row="1" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Bottom">
+                            <TextBlock Text="Save as" Style="{StaticResource Label}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="SavePngButton" Content="Save .png"
+                                        Style="{StaticResource SecondaryButton}"
+                                        Click="SavePngButton_Click" IsEnabled="False"/>
+                                <Button x:Name="SaveSvgButton" Content="Save .svg"
+                                        Style="{StaticResource SecondaryButton}"
+                                        Click="SaveSvgButton_Click" IsEnabled="False"/>
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
+
+                        <Image Grid.Column="1" Source="/Assets/app.png"
+                               Width="64" Height="64" Opacity="0.9"
+                               VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                               Margin="12,0,4,0"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               ToolTip="QR Code Generator"/>
+                    </Grid>
                 </Grid>
             </Grid>
         </TabItem>

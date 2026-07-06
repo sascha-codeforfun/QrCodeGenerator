@@ -9,10 +9,19 @@
     <AssemblyName>QrCodeGenerator</AssemblyName>
     <RootNamespace>QrCodeGenerator</RootNamespace>
     <ApplicationTitle>QR Code Generator</ApplicationTitle>
+    <!-- Exe icon shown in Explorer, taskbar and Alt-Tab -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embedded into the assembly so the window icon and in-app logo work
+         even from the single-file exe (no loose files needed). -->
+    <Resource Include="Assets\app.ico" />
+    <Resource Include="Assets\app.png" />
   </ItemGroup>
 
   <ItemGroup>

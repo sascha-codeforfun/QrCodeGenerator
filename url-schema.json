@@ -3,8 +3,7 @@
   "prefix": "landing",
   "parameters": [
     { "name": "utm_source",   "label": "Source",   "default": "qr" },
-    { "name": "utm_medium",   "label": "Medium", 
-      "default": ["print", "email", "social", "web"] },
+    { "name": "utm_medium",   "label": "Medium",   "default": ["print", "email", "social", "web"] },
     { "name": "utm_campaign", "label": "Campaign", "default": "spring_sale" },
     { "name": "ref",          "label": "Referrer", "default": "", "omitIfEmpty": true }
   ]
