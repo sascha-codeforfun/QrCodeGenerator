@@ -9,6 +9,10 @@ regenerates as you work.
 
 ![QR Code Generator](docs/screenshot.png)
 
+> **Note:** this is a side project maintained in spare time. Bug reports and ideas are
+> welcome via [Issues](https://github.com/sascha-codeforfun/QrCodeGenerator/issues), but
+> responses may be slow and there's no support guarantee.
+
 ## Download
 
 Grab the latest **`QrCodeGenerator.exe`** from the

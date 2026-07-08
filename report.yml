@@ -1,0 +1,56 @@
+name: Bug or idea
+description: Report a problem or suggest an improvement
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. This is a spare-time side project, so responses
+        may be slow — but reports and ideas are genuinely welcome.
+
+        **Please don't paste anything sensitive** (issues on this repo are public).
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is this?
+      options:
+        - Bug (something doesn't work)
+        - Idea / feature request
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: For a bug — what you did, what you expected, and what happened instead. For an idea — what you'd like and the problem it solves.
+      placeholder: |
+        1. Chose a font glyph…
+        2. Clicked Generate…
+        3. Expected X, but got Y.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version (bugs only)
+      description: Shown on the release you downloaded.
+      placeholder: v1.0.2
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Windows version (bugs only)
+      options:
+        - "Not applicable"
+        - Windows 11
+        - Windows 10
+        - Other / not sure
+
+  - type: input
+    id: font
+    attributes:
+      label: Font or schema involved (if relevant)
+      description: Font file name or schema, if the issue is about a center glyph or the URL builder.

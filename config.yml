@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Latest release / downloads
+    url: https://github.com/sascha-codeforfun/QrCodeGenerator/releases/latest
+    about: Get the newest build before reporting — the issue may already be fixed.
