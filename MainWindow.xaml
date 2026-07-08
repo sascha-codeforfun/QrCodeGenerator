@@ -5,61 +5,15 @@
         MinHeight="680" MinWidth="760"
         WindowStartupLocation="CenterScreen"
         Icon="/Assets/app.ico"
-        Background="#FAFAFA"
+        Background="{StaticResource Bg}"
         FontFamily="Segoe UI" FontSize="13">
 
-    <Window.Resources>
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
-            <Setter Property="Background" Value="#2563EB"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}"
-                                CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Opacity" Value="0.9"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="border" Property="Background" Value="#9CA3AF"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="#059669"/>
-        </Style>
-        <Style x:Key="NeutralButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="#6B7280"/>
-            <Setter Property="Margin" Value="0"/>
-        </Style>
-        <Style TargetType="TextBox">
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="BorderBrush" Value="#D1D5DB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="Label" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#374151"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-        </Style>
-    </Window.Resources>
-
-    <TabControl Margin="12" Background="Transparent" BorderThickness="0">
+    <TabControl x:Name="MainTabs" Margin="12" Background="Transparent" BorderThickness="0"
+                SelectionChanged="MainTabs_SelectionChanged">
 
         <!-- ============ TAB 1: SINGLE ============ -->
-        <TabItem Header="Single" Padding="14,8" FontWeight="SemiBold">
-            <Grid Margin="16">
+        <TabItem Header="Single">
+            <Grid Margin="16" Background="{StaticResource Panel}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1.3*"/>
                     <ColumnDefinition Width="16"/>
@@ -69,13 +23,12 @@
                 <!-- Left: scrollable controls -->
                 <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Margin="0,0,10,0">
-                        <TextBlock Text="QR Code Generator" FontSize="22" FontWeight="Bold"
-                                   Foreground="#111827" Margin="0,0,0,16"/>
+                    <StackPanel Margin="4,4,12,4">
+                        <TextBlock Text="QR Code Generator" Style="{StaticResource H1}" Margin="0,0,0,16"/>
 
                         <!-- URL builder (schema-driven) -->
-                        <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1"
-                                CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Border}"
+                                BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,16">
                             <StackPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -83,22 +36,20 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="Build URL from parameters" FontWeight="Bold"
-                                               Foreground="#111827" VerticalAlignment="Center"/>
+                                               VerticalAlignment="Center"/>
                                     <Button Grid.Column="1" Content="Load schema…"
-                                            Style="{StaticResource NeutralButton}"
                                             Click="LoadSchemaButton_Click"/>
                                 </Grid>
-                                <TextBlock x:Name="SchemaInfoText" Foreground="#6B7280"
-                                           Margin="0,6,0,10" TextWrapping="Wrap"
-                                           Text="No schema loaded."/>
+                                <TextBlock x:Name="SchemaInfoText" Style="{StaticResource Dim}"
+                                           Margin="0,6,0,10" Text="No schema loaded."/>
                                 <StackPanel x:Name="ParamsPanel"/>
-                                <Button Content="Build URL ↓" Click="BuildUrlButton_Click"
-                                        HorizontalAlignment="Left" Margin="0,4,0,0"/>
+                                <Button Content="Build URL ↓" Style="{StaticResource Primary}"
+                                        Click="BuildUrlButton_Click" HorizontalAlignment="Left" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
 
                         <TextBlock Text="URL / Text" Style="{StaticResource Label}"/>
-                        <TextBox x:Name="UrlTextBox" Text="https://" Margin="0,0,0,14"/>
+                        <TextBox x:Name="UrlTextBox" Text="https://" Margin="0,0,0,14" LostFocus="AutoRegen_LostFocus"/>
 
                         <Grid Margin="0,0,0,14">
                             <Grid.ColumnDefinitions>
@@ -109,7 +60,7 @@
 
                             <StackPanel Grid.Column="0">
                                 <TextBlock Text="Error correction" Style="{StaticResource Label}"/>
-                                <ComboBox x:Name="EccComboBox" Padding="8,6" SelectedIndex="2">
+                                <ComboBox x:Name="EccComboBox" SelectedIndex="2" SelectionChanged="EccComboBox_SelectionChanged">
                                     <ComboBoxItem Content="L — Low (7%)"/>
                                     <ComboBoxItem Content="M — Medium (15%)"/>
                                     <ComboBoxItem Content="Q — Quartile (25%)"/>
@@ -119,7 +70,8 @@
 
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Pixels per module (PNG)" Style="{StaticResource Label}"/>
-                                <TextBox x:Name="PixelsPerModuleTextBox" Text="20"/>
+                                <TextBox x:Name="PixelsPerModuleTextBox" Text="20" Width="90"
+                                         HorizontalAlignment="Left" LostFocus="AutoRegen_LostFocus"/>
                             </StackPanel>
                         </Grid>
 
@@ -132,19 +84,38 @@
 
                             <StackPanel Grid.Column="0">
                                 <TextBlock Text="Dark color (hex)" Style="{StaticResource Label}"/>
-                                <TextBox x:Name="DarkColorTextBox" Text="#000000"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="DarkColorTextBox" Grid.Column="0" Width="110" Text="#000000"
+                                             TextChanged="ColorHex_Changed" LostFocus="AutoRegen_LostFocus"/>
+                                    <Button x:Name="DarkSwatch" Grid.Column="2" Style="{StaticResource Swatch}"
+                                            Click="DarkSwatch_Click" ToolTip="Pick color"/>
+                                </Grid>
                             </StackPanel>
 
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Light color (hex)" Style="{StaticResource Label}"/>
-                                <TextBox x:Name="LightColorTextBox" Text="#FFFFFF"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="LightColorTextBox" Grid.Column="0" Width="110" Text="#FFFFFF"
+                                             TextChanged="ColorHex_Changed" LostFocus="AutoRegen_LostFocus"/>
+                                    <Button x:Name="LightSwatch" Grid.Column="2" Style="{StaticResource Swatch}"
+                                            Click="LightSwatch_Click" ToolTip="Pick color"/>
+                                </Grid>
                             </StackPanel>
                         </Grid>
 
                         <!-- Center graphic (optional) -->
                         <TextBlock Text="Center graphic (optional)" Style="{StaticResource Label}"/>
-                        <ComboBox x:Name="CenterModeComboBox" Padding="8,6" SelectedIndex="0"
-                                  Margin="0,0,0,10"
+                        <ComboBox x:Name="CenterModeComboBox" SelectedIndex="0" Margin="0,0,0,10"
                                   SelectionChanged="CenterModeComboBox_SelectionChanged">
                             <ComboBoxItem Content="None"/>
                             <ComboBoxItem Content="Image file (PNG / JPG)"/>
@@ -162,86 +133,125 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="LogoPathTextBox" Grid.Column="0" IsReadOnly="True"
-                                         Background="#F3F4F6" Foreground="#6B7280"
                                          Text="No image selected"/>
-                                <Button Grid.Column="2" Content="Browse…" Style="{StaticResource NeutralButton}"
-                                        Click="BrowseLogoButton_Click"/>
-                                <Button Grid.Column="4" Content="Clear" Style="{StaticResource NeutralButton}"
-                                        Click="ClearLogoButton_Click"/>
+                                <Button Grid.Column="2" Content="Browse…" Click="BrowseLogoButton_Click"/>
+                                <Button Grid.Column="4" Content="Clear" Click="ClearLogoButton_Click"/>
                             </Grid>
                         </StackPanel>
 
                         <!-- Font glyph sub-panel -->
                         <StackPanel x:Name="FontPanel" Visibility="Collapsed">
+                            <!-- Character store, edited via the combined chooser (kept hidden). -->
+                            <TextBox x:Name="FontCharsTextBox" Text="" Visibility="Collapsed"
+                                     TextChanged="GlyphInput_Changed"/>
+
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="8"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="10"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBox x:Name="FontPathTextBox" Grid.Column="0" IsReadOnly="True"
-                                         Background="#F3F4F6" Foreground="#6B7280"
-                                         Text="No font selected"/>
-                                <Button Grid.Column="2" Content="Browse…" Style="{StaticResource NeutralButton}"
-                                        Click="BrowseFontButton_Click"/>
-                                <Button Grid.Column="4" Content="Clear" Style="{StaticResource NeutralButton}"
-                                        Click="ClearFontButton_Click"/>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Font glyph" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="GlyphSummaryText" Style="{StaticResource Dim}"
+                                               Text="No font or glyph chosen" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="Choose font &amp; glyph…"
+                                        Click="ChooseFontGlyphButton_Click" VerticalAlignment="Bottom"/>
                             </Grid>
+
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="8"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="12"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="16"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="16"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Character(s)" Style="{StaticResource Label}"/>
-                                    <TextBox x:Name="FontCharsTextBox" Text=""
-                                             TextChanged="GlyphInput_Changed"/>
-                                </StackPanel>
-                                <Border Grid.Column="2" VerticalAlignment="Bottom"
+                                <Border Grid.Column="0" VerticalAlignment="Bottom"
                                         Width="34" Height="34" Background="White"
-                                        BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4"
+                                        BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4"
                                         ToolTip="Live preview of the glyph">
                                     <Image x:Name="GlyphPreviewImage" Margin="4" Stretch="Uniform"/>
                                 </Border>
-                                <StackPanel Grid.Column="4" Width="120">
+                                <StackPanel Grid.Column="2" Width="170">
                                     <TextBlock Text="Glyph color (hex)" Style="{StaticResource Label}"/>
-                                    <TextBox x:Name="GlyphColorTextBox" Text="#000000"
-                                             TextChanged="GlyphInput_Changed"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="GlyphColorTextBox" Grid.Column="0" Text="#000000"
+                                                 TextChanged="GlyphInput_Changed" LostFocus="AutoRegen_LostFocus"/>
+                                        <Button x:Name="GlyphSwatch" Grid.Column="2" Style="{StaticResource Swatch}"
+                                                Click="GlyphSwatch_Click" ToolTip="Pick color"/>
+                                    </Grid>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Width="230">
+                                    <TextBlock Text="Glyph background" Style="{StaticResource Label}"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="6"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="10"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="GlyphBgColorTextBox" Grid.Column="0" Text="#FFFFFF"
+                                                 TextChanged="ColorHex_Changed" LostFocus="AutoRegen_LostFocus"/>
+                                        <Button x:Name="GlyphBgSwatch" Grid.Column="2" Style="{StaticResource Swatch}"
+                                                Click="GlyphBgSwatch_Click" ToolTip="Pick background color"/>
+                                        <CheckBox x:Name="GlyphBgNoneCheck" Grid.Column="4" Content="none"
+                                                  VerticalAlignment="Center" Foreground="{StaticResource Text}"
+                                                  Checked="GlyphBgNone_Changed" Unchecked="GlyphBgNone_Changed"
+                                                  ToolTip="Transparent — no pad behind the glyph (riskier to scan)"/>
+                                    </Grid>
+                                </StackPanel>
+                                <StackPanel Grid.Column="6">
+                                    <TextBlock Text="Size (%)" Style="{StaticResource Label}"/>
+                                    <TextBox x:Name="LogoSizeTextBox" Text="22" Width="70"
+                                             HorizontalAlignment="Left" LostFocus="AutoRegen_LostFocus"/>
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
 
-                        <StackPanel x:Name="SizePanel" Width="220" HorizontalAlignment="Left"
+                        <!-- Size for image mode (glyph mode has its own on the row above) -->
+                        <StackPanel x:Name="SizePanel" HorizontalAlignment="Left"
                                     Margin="0,0,0,4" Visibility="Collapsed">
                             <TextBlock Text="Graphic size (% of QR width)" Style="{StaticResource Label}"/>
-                            <TextBox x:Name="LogoSizeTextBox" Text="22"/>
+                            <TextBox x:Name="ImageSizeTextBox" Text="22" Width="90"
+                                     HorizontalAlignment="Left" LostFocus="AutoRegen_LostFocus"/>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                            <Button Content="Generate preview" Click="GenerateButton_Click"/>
-                            <Button Content="Add to batch list →" Background="#7C3AED"
+                            <Button Content="Generate preview" Style="{StaticResource Primary}"
+                                    Click="GenerateButton_Click" Margin="0,0,8,0"/>
+                            <Button Content="Add to batch list →" Style="{StaticResource Accent}"
                                     Click="AddToBatchButton_Click"/>
                         </StackPanel>
 
-                        <TextBlock x:Name="StatusText" Margin="0,18,0,0" TextWrapping="Wrap"
-                                   Foreground="#6B7280"/>
+                        <TextBlock x:Name="StatusText" Style="{StaticResource Dim}" Margin="0,18,0,0"/>
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- Right: preview + save actions -->
+                <!-- Right: preview toolbar + preview + save actions -->
                 <Grid Grid.Column="2">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" Background="White" CornerRadius="8"
-                            BorderBrush="#E5E7EB" BorderThickness="1">
+                    <Button Grid.Row="0" x:Name="PreviewBgButton" Content="Preview BG: white"
+                            HorizontalAlignment="Right" Margin="0,0,0,8"
+                            Click="PreviewBgButton_Click"
+                            ToolTip="Toggle the preview background between white and dark for scan testing"/>
+
+                    <Border Grid.Row="1" x:Name="PreviewArea" Background="White" CornerRadius="8"
+                            BorderBrush="{StaticResource Border}" BorderThickness="1">
                         <Grid>
                             <TextBlock x:Name="PlaceholderText" Text="Preview"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -251,7 +261,7 @@
                         </Grid>
                     </Border>
 
-                    <Grid Grid.Row="1" Margin="0,12,0,0">
+                    <Grid Grid.Row="2" Margin="0,12,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -261,16 +271,16 @@
                             <TextBlock Text="Save as" Style="{StaticResource Label}"/>
                             <StackPanel Orientation="Horizontal">
                                 <Button x:Name="SavePngButton" Content="Save .png"
-                                        Style="{StaticResource SecondaryButton}"
+                                        Style="{StaticResource Success}" Margin="0,0,8,0"
                                         Click="SavePngButton_Click" IsEnabled="False"/>
                                 <Button x:Name="SaveSvgButton" Content="Save .svg"
-                                        Style="{StaticResource SecondaryButton}"
+                                        Style="{StaticResource Success}"
                                         Click="SaveSvgButton_Click" IsEnabled="False"/>
                             </StackPanel>
                         </StackPanel>
 
                         <Image Grid.Column="1" Source="/Assets/app.png"
-                               Width="64" Height="64" Opacity="0.9"
+                               Width="64" Height="64"
                                VerticalAlignment="Bottom" HorizontalAlignment="Right"
                                Margin="12,0,4,0"
                                RenderOptions.BitmapScalingMode="HighQuality"
@@ -281,33 +291,42 @@
         </TabItem>
 
         <!-- ============ TAB 2: BATCH ============ -->
-        <TabItem Header="Batch → ZIP" Padding="14,8" FontWeight="SemiBold">
-            <Grid Margin="16">
+        <TabItem Header="Batch → ZIP">
+            <Grid Margin="16" Background="{StaticResource Panel}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Text="Batch → ZIP of SVGs" FontSize="22" FontWeight="Bold"
-                           Foreground="#111827" Margin="0,0,0,10"/>
+                <TextBlock Grid.Row="0" Text="Batch → ZIP of SVGs" Style="{StaticResource H1}" Margin="4,4,0,10"/>
 
-                <TextBlock Grid.Row="1" TextWrapping="Wrap" Foreground="#6B7280" Margin="0,0,0,12"
-                    Text="Paste one URL per line. Each URL becomes a QR .svg inside a single ZIP. Filenames are built from the URL with the protocol and subdomain removed; every character that isn't a–z or 0–9 (path and querystring included) becomes an underscore. Colors and error-correction from the Single tab are reused."/>
+                <TextBlock Grid.Row="1" Style="{StaticResource Dim}" Margin="4,0,4,12"
+                    Text="Paste one URL per line. Each URL becomes a QR .svg inside a single ZIP. Filenames are built from the URL with the protocol and subdomain removed; every character that isn't a–z or 0–9 (path and querystring included) becomes an underscore. All Single-tab settings below — colors, error correction, and the center graphic — are applied to every code."/>
 
-                <TextBox Grid.Row="2" x:Name="BatchUrlsTextBox"
+                <TextBox Grid.Row="2" x:Name="BatchUrlsTextBox" Margin="4,0"
                          AcceptsReturn="True" TextWrapping="NoWrap"
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                          VerticalContentAlignment="Top" FontFamily="Consolas" Padding="8"
-                         MinHeight="240"/>
+                         MinHeight="220"/>
 
-                <Button Grid.Row="3" Content="Generate ZIP…" Click="GenerateZipButton_Click"
-                        HorizontalAlignment="Left" Margin="0,14,0,0"/>
+                <!-- Read-only summary of the Single-tab settings that will be applied -->
+                <Border Grid.Row="3" Background="{StaticResource Card}" BorderBrush="{StaticResource Border}"
+                        BorderThickness="1" CornerRadius="8" Padding="12" Margin="4,12,4,0">
+                    <StackPanel>
+                        <TextBlock Text="Settings applied from the Single tab (read-only)"
+                                   FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="BatchAppliedText" Style="{StaticResource Dim}" Text="—"/>
+                    </StackPanel>
+                </Border>
 
-                <TextBlock Grid.Row="4" x:Name="BatchStatusText" Margin="0,14,0,0"
-                           TextWrapping="Wrap" Foreground="#6B7280"/>
+                <Button Grid.Row="4" Content="Generate ZIP…" Style="{StaticResource Primary}"
+                        Click="GenerateZipButton_Click" HorizontalAlignment="Left" Margin="4,14,0,0"/>
+
+                <TextBlock Grid.Row="5" x:Name="BatchStatusText" Style="{StaticResource Dim}" Margin="4,14,0,0"/>
             </Grid>
         </TabItem>
 

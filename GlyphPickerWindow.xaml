@@ -1,0 +1,121 @@
+<Window x:Class="QrCodeGenerator.GlyphPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Choose font &amp; glyph" Height="760" Width="1180"
+        MinHeight="480" MinWidth="640"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource Bg}"
+        FontFamily="Segoe UI" FontSize="13">
+
+    <Window.Resources>
+        <Style x:Key="GlyphTile" TargetType="Button">
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Height" Value="46"/>
+            <Setter Property="Margin" Value="3"/>
+            <Setter Property="Background" Value="{StaticResource Card}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="tb" Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4"
+                                Padding="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="tb" Property="BorderBrush" Value="{StaticResource Blue}"/>
+                                <Setter TargetName="tb" Property="Background" Value="{StaticResource Panel}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Font row -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="Font" Style="{StaticResource Label}"/>
+                <TextBlock x:Name="FontNameText" Style="{StaticResource Dim}" Text="No font chosen"
+                           TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+            <Button Grid.Column="1" Content="System fonts…" Click="SystemFontsClick"
+                    VerticalAlignment="Bottom" Margin="0,0,8,0"
+                    ToolTip="Pick an installed font by name"/>
+            <Button Grid.Column="2" Content="Browse…" Click="BrowseClick"
+                    VerticalAlignment="Bottom" Margin="0,0,8,0"/>
+            <Button Grid.Column="3" Content="Clear" Click="ClearFontClick" VerticalAlignment="Bottom"/>
+        </Grid>
+
+        <!-- Search + pager -->
+        <Grid Grid.Row="1" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="SearchBox" Grid.Column="0" TextChanged="SearchBox_TextChanged"
+                     ToolTip="Filter by code point, e.g. 21 or 0041 (hex)"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="PrevButton" Content="‹ Prev" Click="PrevButton_Click" Margin="0,0,8,0"/>
+                <TextBlock x:Name="CountText" VerticalAlignment="Center" MinWidth="190"
+                           TextAlignment="Center" Style="{StaticResource Dim}"/>
+                <Button x:Name="NextButton" Content="Next ›" Click="NextButton_Click" Margin="8,0,0,0"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Glyph grid -->
+        <Border Grid.Row="2" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}"
+                BorderThickness="1" CornerRadius="8">
+            <Grid>
+                <TextBlock x:Name="EmptyHint" Text="Pick a font to begin."
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Style="{StaticResource Dim}"/>
+                <ScrollViewer x:Name="GlyphScroll" VerticalScrollBarVisibility="Auto" Padding="8">
+                    <WrapPanel x:Name="GlyphPanel"/>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- Selected chars + preview + OK/Cancel -->
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Selected character(s) — click glyphs above, or type here" Style="{StaticResource Label}"/>
+                <TextBox x:Name="CharsBox" TextChanged="CharsBox_TextChanged"/>
+            </StackPanel>
+            <Border Grid.Column="2" VerticalAlignment="Bottom" Width="40" Height="40"
+                    Background="{StaticResource Card}" BorderBrush="{StaticResource Border}"
+                    BorderThickness="1" CornerRadius="6" ToolTip="Preview">
+                <Image x:Name="PreviewImage" Margin="5" Stretch="Uniform"/>
+            </Border>
+            <Button Grid.Column="4" Content="Cancel" Click="CancelClick"
+                    VerticalAlignment="Bottom" Margin="0,0,8,0"/>
+            <Button Grid.Column="5" Content="OK" Style="{StaticResource Primary}" Click="OkClick"
+                    VerticalAlignment="Bottom"/>
+        </Grid>
+    </Grid>
+</Window>

@@ -18,6 +18,7 @@ public partial class MainWindow : Window
 {
     private string? _logoPath;
     private string? _fontPath;
+    private bool _previewDark;
 
     // URL-builder schema state
     private UrlSchemaJson? _schema;
@@ -27,6 +28,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         TryAutoLoadSchema();
+        InitSwatches();
+        UpdateGlyphSummary();
     }
 
     // ==================== URL BUILDER (schema-driven) ====================
@@ -141,47 +144,101 @@ public partial class MainWindow : Window
 
         if (_schema?.Parameters == null) return;
 
-        var labelBrush = new SolidColorBrush(Color.FromRgb(0x37, 0x41, 0x51));
+        var labelBrush = (Brush)FindResource("Text");
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        int row = 0;
+        bool leftUsed = false;   // is column 0 of the current row occupied?
+
+        void EnsureRow(int r)
+        {
+            while (grid.RowDefinitions.Count <= r)
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
 
         foreach (UrlParamJson p in _schema.Parameters)
         {
             if (string.IsNullOrWhiteSpace(p.Name)) continue;
 
-            var wrap = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
-
-            var label = new TextBlock
-            {
-                Text = string.IsNullOrWhiteSpace(p.Label) ? p.Name : p.Label,
-                Foreground = labelBrush,
-                FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(0, 0, 0, 3),
-            };
-            wrap.Children.Add(label);
-
             List<string> defaults = p.ResolveDefaultValues();
+            bool wide = p.Wide == true || IsWideByContent(defaults);
+            FrameworkElement field = BuildParamField(p, defaults, labelBrush);
 
-            if (defaults.Count >= 2)
+            if (wide)
             {
-                // Multiple values -> dropdown, first entry pre-selected.
-                var combo = new ComboBox { Padding = new Thickness(8, 6, 8, 6) };
-                foreach (string option in defaults) combo.Items.Add(option);
-                combo.SelectedIndex = 0;
-
-                wrap.Children.Add(combo);
-                _paramInputs.Add(new ParamInput(p, () => combo.SelectedItem as string ?? string.Empty));
+                if (leftUsed) { row++; leftUsed = false; }   // move to a fresh row
+                EnsureRow(row);
+                Grid.SetRow(field, row);
+                Grid.SetColumn(field, 0);
+                Grid.SetColumnSpan(field, 3);
+                grid.Children.Add(field);
+                row++;
+            }
+            else if (!leftUsed)
+            {
+                EnsureRow(row);
+                Grid.SetRow(field, row);
+                Grid.SetColumn(field, 0);
+                grid.Children.Add(field);
+                leftUsed = true;
             }
             else
             {
-                // One value (or none) -> editable textbox, pre-filled.
-                string initial = defaults.Count == 1 ? defaults[0] : string.Empty;
-                var box = new TextBox { Text = initial };
-
-                wrap.Children.Add(box);
-                _paramInputs.Add(new ParamInput(p, () => box.Text ?? string.Empty));
+                EnsureRow(row);
+                Grid.SetRow(field, row);
+                Grid.SetColumn(field, 2);
+                grid.Children.Add(field);
+                leftUsed = false;
+                row++;
             }
-
-            ParamsPanel.Children.Add(wrap);
         }
+
+        ParamsPanel.Children.Add(grid);
+    }
+
+    /// <summary>Long values (or a long dropdown option) get the full width so they don't truncate.</summary>
+    private static bool IsWideByContent(List<string> defaults)
+    {
+        foreach (string d in defaults)
+            if (d.Length > 40) return true;
+        return false;
+    }
+
+    /// <summary>Builds one parameter's label + input (textbox or dropdown) and registers its value getter.</summary>
+    private FrameworkElement BuildParamField(UrlParamJson p, List<string> defaults, Brush labelBrush)
+    {
+        var wrap = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+
+        var label = new TextBlock
+        {
+            Text = string.IsNullOrWhiteSpace(p.Label) ? p.Name : p.Label,
+            Foreground = labelBrush,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 3),
+        };
+        wrap.Children.Add(label);
+
+        if (defaults.Count >= 2)
+        {
+            var combo = new ComboBox();
+            foreach (string option in defaults) combo.Items.Add(option);
+            combo.SelectedIndex = 0;
+            wrap.Children.Add(combo);
+            _paramInputs.Add(new ParamInput(p, () => combo.SelectedItem as string ?? string.Empty));
+        }
+        else
+        {
+            string initial = defaults.Count == 1 ? defaults[0] : string.Empty;
+            var box = new TextBox { Text = initial };
+            wrap.Children.Add(box);
+            _paramInputs.Add(new ParamInput(p, () => box.Text ?? string.Empty));
+        }
+
+        return wrap;
     }
 
     private string ComposeUrl()
@@ -232,6 +289,32 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Regenerates the preview, keeping the last good image on any error (no popup).</summary>
+    private void RegeneratePreviewSafe()
+    {
+        if (QrImage == null) return;   // still initializing
+        try
+        {
+            byte[] pngBytes = BuildPng();
+            QrImage.Source = LoadBitmap(pngBytes);
+            PlaceholderText.Visibility = Visibility.Collapsed;
+            SavePngButton.IsEnabled = true;
+            SaveSvgButton.IsEnabled = true;
+            if (StatusText.Text.StartsWith("Can't preview", StringComparison.Ordinal))
+                StatusText.Text = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            // Keep the last good preview; just a quiet hint, no popup.
+            StatusText.Text = "Can't preview yet: " + ex.Message;
+        }
+    }
+
+    private void AutoRegen_LostFocus(object sender, RoutedEventArgs e) => RegeneratePreviewSafe();
+
+    private void EccComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        => RegeneratePreviewSafe();
+
     private void SavePngButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -277,7 +360,7 @@ public partial class MainWindow : Window
         {
             _logoPath = dialog.FileName;
             LogoPathTextBox.Text = dialog.FileName;
-            LogoPathTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27));
+            LogoPathTextBox.Foreground = (Brush)FindResource("Text");
             StatusText.Text = "Tip: with a center image, pick High (H) error correction so the code still scans.";
         }
     }
@@ -286,7 +369,7 @@ public partial class MainWindow : Window
     {
         _logoPath = null;
         LogoPathTextBox.Text = "No image selected";
-        LogoPathTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80));
+        LogoPathTextBox.Foreground = (Brush)FindResource("TextDim");
     }
 
     private void CenterModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -297,37 +380,127 @@ public partial class MainWindow : Window
         int mode = CenterModeComboBox.SelectedIndex;
         ImagePanel.Visibility = mode == 1 ? Visibility.Visible : Visibility.Collapsed;
         FontPanel.Visibility = mode == 2 ? Visibility.Visible : Visibility.Collapsed;
-        SizePanel.Visibility = mode == 0 ? Visibility.Collapsed : Visibility.Visible;
+        SizePanel.Visibility = mode == 1 ? Visibility.Visible : Visibility.Collapsed;
 
+        UpdateGlyphSummary();
         UpdateGlyphPreview();
+        RegeneratePreviewSafe();
     }
 
-    private void BrowseFontButton_Click(object sender, RoutedEventArgs e)
+    private void ChooseFontGlyphButton_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog
+        try
         {
-            Filter = "Font files (*.ttf;*.otf;*.ttc)|*.ttf;*.otf;*.ttc",
-            Title = "Choose a font file"
-        };
-        if (dialog.ShowDialog() == true)
+            var chooser = new GlyphPickerWindow(_fontPath, FontCharsTextBox.Text) { Owner = this };
+            if (chooser.ShowDialog() == true)
+            {
+                _fontPath = chooser.ResultFontPath;
+                FontCharsTextBox.Text = chooser.ResultChars;   // triggers preview + swatch
+                if (!string.IsNullOrEmpty(_fontPath))
+                    StatusText.Text = "Tip: use High (H) error correction with a center glyph so the code still scans.";
+                UpdateGlyphSummary();
+                UpdateGlyphPreview();
+                RegeneratePreviewSafe();
+            }
+        }
+        catch (Exception ex)
         {
-            _fontPath = dialog.FileName;
-            FontPathTextBox.Text = dialog.FileName;
-            FontPathTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x11, 0x18, 0x27));
-            StatusText.Text = "Tip: use High (H) error correction with a center glyph so the code still scans.";
-            UpdateGlyphPreview();
+            ShowError(ex.Message);
         }
     }
 
-    private void ClearFontButton_Click(object sender, RoutedEventArgs e)
+    private void UpdateGlyphSummary()
     {
-        _fontPath = null;
-        FontPathTextBox.Text = "No font selected";
-        FontPathTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80));
+        if (GlyphSummaryText == null) return;
+
+        if (string.IsNullOrEmpty(_fontPath))
+        {
+            GlyphSummaryText.Text = "No font or glyph chosen";
+            return;
+        }
+
+        string font = Path.GetFileName(_fontPath);
+        string chars = FontCharsTextBox.Text ?? string.Empty;
+        GlyphSummaryText.Text = chars.Length > 0 ? $"{font} · \u201c{chars}\u201d" : $"{font} · (no glyph)";
+    }
+
+    private void GlyphInput_Changed(object sender, TextChangedEventArgs e)
+    {
+        SetSwatchFill(GlyphSwatch, GlyphColorTextBox?.Text ?? string.Empty);
         UpdateGlyphPreview();
     }
 
-    private void GlyphInput_Changed(object sender, TextChangedEventArgs e) => UpdateGlyphPreview();
+    // ==================== COLOR PICKER ====================
+
+    private void ColorHex_Changed(object sender, TextChangedEventArgs e)
+    {
+        if (ReferenceEquals(sender, DarkColorTextBox)) SetSwatchFill(DarkSwatch, DarkColorTextBox.Text);
+        else if (ReferenceEquals(sender, LightColorTextBox)) SetSwatchFill(LightSwatch, LightColorTextBox.Text);
+        else if (ReferenceEquals(sender, GlyphBgColorTextBox)) SetSwatchFill(GlyphBgSwatch, GlyphBgColorTextBox.Text);
+    }
+
+    private void SetSwatchFill(Button? swatch, string hex)
+    {
+        if (swatch == null) return;
+        try { swatch.Background = new SolidColorBrush(ParseColor(hex)); }
+        catch { swatch.Background = (Brush)FindResource("Card"); }
+    }
+
+    private void InitSwatches()
+    {
+        SetSwatchFill(DarkSwatch, DarkColorTextBox.Text);
+        SetSwatchFill(LightSwatch, LightColorTextBox.Text);
+        SetSwatchFill(GlyphSwatch, GlyphColorTextBox.Text);
+        SetSwatchFill(GlyphBgSwatch, GlyphBgColorTextBox.Text);
+    }
+
+    private void DarkSwatch_Click(object sender, RoutedEventArgs e)
+        => OpenColorPicker(DarkColorTextBox, LightColorTextBox.Text, "light color");
+
+    private void LightSwatch_Click(object sender, RoutedEventArgs e)
+        => OpenColorPicker(LightColorTextBox, DarkColorTextBox.Text, "dark color");
+
+    private void GlyphSwatch_Click(object sender, RoutedEventArgs e)
+    {
+        // Glyph readability is glyph-color vs its background: the pad, or (when transparent)
+        // the light modules the glyph sits on.
+        bool transparent = GlyphBgNoneCheck?.IsChecked == true;
+        string pairHex = transparent ? LightColorTextBox.Text : GlyphBgColorTextBox.Text;
+        string pairLabel = transparent ? "light modules" : "glyph background";
+        OpenColorPicker(GlyphColorTextBox, pairHex, pairLabel);
+    }
+
+    private void GlyphBgSwatch_Click(object sender, RoutedEventArgs e)
+        => OpenColorPicker(GlyphBgColorTextBox, DarkColorTextBox.Text, "dark modules");
+
+    private void GlyphBgNone_Changed(object sender, RoutedEventArgs e)
+    {
+        if (GlyphBgColorTextBox == null) return;   // still initializing
+        bool none = GlyphBgNoneCheck.IsChecked == true;
+        GlyphBgColorTextBox.IsEnabled = !none;
+        GlyphBgSwatch.IsEnabled = !none;
+        RegeneratePreviewSafe();
+    }
+
+    private void OpenColorPicker(TextBox target, string? pairHex, string? pairLabel)
+    {
+        var picker = new ColorPickerWindow(target.Text, pairHex, pairLabel) { Owner = this };
+        if (picker.ShowDialog() == true && picker.SelectedHex != null)
+        {
+            target.Text = picker.SelectedHex;   // triggers TextChanged → validation, swatch
+            RegeneratePreviewSafe();
+        }
+    }
+
+    private void PreviewBgButton_Click(object sender, RoutedEventArgs e)
+    {
+        _previewDark = !_previewDark;
+        PreviewArea.Background = _previewDark ? (Brush)FindResource("Bg") : Brushes.White;
+        PreviewBgButton.Content = _previewDark ? "Preview BG: dark" : "Preview BG: white";
+        PlaceholderText.Foreground = _previewDark
+            ? (Brush)FindResource("TextDim")
+            : new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF));
+    }
 
     /// <summary>Renders a small live vector preview of the current glyph(s) next to the input.</summary>
     private void UpdateGlyphPreview()
@@ -385,7 +558,7 @@ public partial class MainWindow : Window
             return OverlayLogoOnPng(baseBytes, _logoPath!, GetLogoSizePercent());
         if (CenterMode == 2 && HasGlyphInput)
             return OverlayGlyphOnPng(baseBytes, _fontPath!, FontCharsTextBox.Text,
-                NormalizeHex(GlyphColorTextBox.Text), GetLogoSizePercent());
+                NormalizeHex(GlyphColorTextBox.Text), GetGlyphBgHex(), GetLogoSizePercent());
         return baseBytes;
     }
 
@@ -397,12 +570,39 @@ public partial class MainWindow : Window
             NormalizeHex(DarkColorTextBox.Text),
             NormalizeHex(LightColorTextBox.Text));
 
+        return ApplyCenterGraphicToSvg(svg);
+    }
+
+    /// <summary>Applies the current Single-tab center graphic (image or glyph) to an SVG, if any.</summary>
+    private string ApplyCenterGraphicToSvg(string svg)
+    {
         if (CenterMode == 1 && HasImageInput)
             return EmbedLogoInSvg(svg, _logoPath!, GetLogoSizePercent());
         if (CenterMode == 2 && HasGlyphInput)
             return EmbedGlyphInSvg(svg, _fontPath!, FontCharsTextBox.Text,
-                NormalizeHex(GlyphColorTextBox.Text), GetLogoSizePercent());
+                NormalizeHex(GlyphColorTextBox.Text), GetGlyphBgHex(), GetLogoSizePercent());
         return svg;
+    }
+
+    /// <summary>Glyph background color, or null when the "none" (transparent) toggle is on.</summary>
+    private string? GetGlyphBgHex()
+        => GlyphBgNoneCheck?.IsChecked == true ? null : NormalizeHex(GlyphBgColorTextBox.Text);
+
+    /// <summary>Throws with a clear message if the active center-graphic config is invalid.</summary>
+    private void ValidateCenterGraphicConfig()
+    {
+        if (CenterMode == 1 && HasImageInput)
+        {
+            RequireFile(_logoPath!, "center image");
+            _ = GetLogoSizePercent();
+        }
+        else if (CenterMode == 2 && HasGlyphInput)
+        {
+            RequireFile(_fontPath!, "font file");
+            _ = NormalizeHex(GlyphColorTextBox.Text);
+            if (GlyphBgNoneCheck?.IsChecked != true) _ = NormalizeHex(GlyphBgColorTextBox.Text);
+            _ = GetLogoSizePercent();
+        }
     }
 
     // ==================== BATCH TAB ====================
@@ -411,6 +611,8 @@ public partial class MainWindow : Window
     {
         try
         {
+            UpdateBatchSummary();
+
             string[] urls = (BatchUrlsTextBox.Text ?? string.Empty)
                 .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
@@ -426,6 +628,9 @@ public partial class MainWindow : Window
                 BatchStatusText.Text = "Paste at least one URL first.";
                 return;
             }
+
+            // Fail fast (before prompting for a save location) if the center graphic is misconfigured.
+            ValidateCenterGraphicConfig();
 
             var dialog = new SaveFileDialog { Filter = "ZIP archive (*.zip)|*.zip", FileName = "qrcodes.zip" };
             if (dialog.ShowDialog() != true) return;
@@ -446,6 +651,7 @@ public partial class MainWindow : Window
                     try
                     {
                         string svg = GenerateSvg(payload, ecc, darkHex, lightHex);
+                        svg = ApplyCenterGraphicToSvg(svg);
                         string entryName = UniqueName(BuildSvgFileName(payload), usedNames) + ".svg";
 
                         ZipArchiveEntry entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
@@ -475,6 +681,44 @@ public partial class MainWindow : Window
             MessageBox.Show(ex.Message, "QR Code Generator", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
+
+    private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // Ignore SelectionChanged bubbling up from inner ComboBoxes/ListBoxes.
+        if (!ReferenceEquals(e.OriginalSource, MainTabs)) return;
+        UpdateBatchSummary();
+    }
+
+    /// <summary>Refreshes the read-only summary of Single-tab settings shown on the Batch tab.</summary>
+    private void UpdateBatchSummary()
+    {
+        if (BatchAppliedText == null) return;
+
+        var parts = new List<string>
+        {
+            $"Error correction: {EccLabel()}",
+            $"Dark {DarkColorTextBox.Text}",
+            $"Light {LightColorTextBox.Text}",
+        };
+
+        if (CenterMode == 1 && HasImageInput)
+            parts.Add($"Center: image \u201c{Path.GetFileName(_logoPath)}\u201d @ {ImageSizeTextBox.Text}%");
+        else if (CenterMode == 2 && HasGlyphInput)
+            parts.Add($"Center: glyph \u201c{FontCharsTextBox.Text}\u201d from " +
+                      $"{Path.GetFileName(_fontPath)} @ {LogoSizeTextBox.Text}% ({GlyphColorTextBox.Text})");
+        else
+            parts.Add("Center: none");
+
+        BatchAppliedText.Text = string.Join("   \u00b7   ", parts);
+    }
+
+    private string EccLabel() => EccComboBox.SelectedIndex switch
+    {
+        0 => "L \u2014 Low (7%)",
+        1 => "M \u2014 Medium (15%)",
+        3 => "H \u2014 High (30%)",
+        _ => "Q \u2014 Quartile (25%)",
+    };
 
     // ==================== FILENAME SANITIZATION ====================
 
@@ -666,16 +910,22 @@ public partial class MainWindow : Window
     /// </summary>
     private static PathGeometry BuildGlyphGeometry(string fontPath, string text)
     {
+        using LoadedFont lf = LoadFontRobust(fontPath);
+        return BuildGlyphGeometry(lf.Typeface, text);
+    }
+
+    /// <summary>
+    /// Loads a font's glyph typeface robustly and keeps any temp copy alive until disposed.
+    /// Tries the original path first; if WPF's resolver trips (e.g. a font at the root of a
+    /// secondary drive), copies the file to the system-drive temp folder and loads from there.
+    /// </summary>
+    internal static LoadedFont LoadFontRobust(string fontPath)
+    {
         RequireFile(fontPath, "font file");
 
-        // Try the original path first.
         if (TryLoadGlyphTypeface(fontPath, out GlyphTypeface gtf))
-            return BuildGlyphGeometry(gtf, text);
+            return new LoadedFont(gtf, null);
 
-        // Fallback: some drives/paths (e.g. a font at the root of a secondary drive)
-        // trip up WPF's font URI resolver and it throws internally. Copy the file to a
-        // temp location on the system drive and load from there. Keep the temp file
-        // alive until the outline is fully extracted, then clean it up.
         string temp = Path.Combine(
             Path.GetTempPath(),
             "qrgen_" + Guid.NewGuid().ToString("N") + Path.GetExtension(fontPath));
@@ -683,24 +933,41 @@ public partial class MainWindow : Window
         {
             File.Copy(fontPath, temp, overwrite: true);
             if (TryLoadGlyphTypeface(temp, out GlyphTypeface gtfTemp))
-                return BuildGlyphGeometry(gtfTemp, text);
+                return new LoadedFont(gtfTemp, temp);
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
         {
             // fall through to the friendly error below
         }
-        finally
-        {
-            try { if (File.Exists(temp)) File.Delete(temp); } catch { /* best effort */ }
-        }
+
+        try { if (File.Exists(temp)) File.Delete(temp); } catch { /* best effort */ }
 
         throw new InvalidOperationException(
             "Couldn't read that font. Make sure it's an intact TTF/OTF/TTC file " +
             "(WOFF/WOFF2 are not supported — convert them first).");
     }
 
+    /// <summary>A loaded glyph typeface plus any temp file to clean up when done.</summary>
+    internal sealed class LoadedFont : IDisposable
+    {
+        public GlyphTypeface Typeface { get; }
+        private readonly string? _tempFile;
+
+        public LoadedFont(GlyphTypeface typeface, string? tempFile)
+        {
+            Typeface = typeface;
+            _tempFile = tempFile;
+        }
+
+        public void Dispose()
+        {
+            if (_tempFile == null) return;
+            try { if (File.Exists(_tempFile)) File.Delete(_tempFile); } catch { /* best effort */ }
+        }
+    }
+
     /// <summary>Extracts the combined outline for the given characters from a loaded typeface.</summary>
-    private static PathGeometry BuildGlyphGeometry(GlyphTypeface gtf, string text)
+    internal static PathGeometry BuildGlyphGeometry(GlyphTypeface gtf, string text)
     {
         const double emSize = 1000.0;
         var group = new GeometryGroup();
@@ -736,8 +1003,10 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Tries to load a glyph typeface without throwing: first via the forgiving
-    /// Fonts.GetTypefaces path, then via the (fragile) direct constructor.
+    /// Tries to load a glyph typeface without throwing. Loads the specific file directly
+    /// first (GlyphTypeface(Uri) reads the exact file), then falls back to Fonts.GetTypefaces.
+    /// Direct-first matters: GetTypefaces consults WPF's installed-font cache and, for a file
+    /// in C:\Windows\Fonts, can return glyphs from a different / previously loaded font.
     /// </summary>
     private static bool TryLoadGlyphTypeface(string fontPath, out GlyphTypeface gtf)
     {
@@ -747,6 +1016,11 @@ public partial class MainWindow : Window
         try { fontUri = new Uri(fontPath, UriKind.Absolute); }
         catch { return false; }
 
+        // Accurate: reads exactly this file.
+        try { gtf = new GlyphTypeface(fontUri); return true; }
+        catch { /* can NRE on some paths (e.g. secondary-drive root); fall through */ }
+
+        // Fallback: forgiving, but cache-prone for installed fonts.
         try
         {
             foreach (Typeface tf in Fonts.GetTypefaces(fontUri))
@@ -754,11 +1028,10 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // fall through to direct construction
+            // fall through
         }
 
-        try { gtf = new GlyphTypeface(fontUri); return true; }
-        catch { return false; }
+        return false;
     }
 
     /// <summary>Matrix that scales/centers a geometry's bounds into a target square, preserving aspect.</summary>
@@ -775,7 +1048,7 @@ public partial class MainWindow : Window
     }
 
     private static byte[] OverlayGlyphOnPng(
-        byte[] qrPngBytes, string fontPath, string text, string glyphHex, double sizePercent)
+        byte[] qrPngBytes, string fontPath, string text, string glyphHex, string? glyphBgHex, double sizePercent)
     {
         BitmapSource qr = LoadBitmap(qrPngBytes);
         double w = qr.PixelWidth;
@@ -794,8 +1067,13 @@ public partial class MainWindow : Window
         using (DrawingContext dc = visual.RenderOpen())
         {
             dc.DrawImage(qr, new Rect(0, 0, w, h));
-            var bg = new Rect(x - pad, y - pad, box + 2 * pad, box + 2 * pad);
-            dc.DrawRoundedRectangle(Brushes.White, null, bg, pad, pad);
+            if (glyphBgHex != null)
+            {
+                var padBrush = new SolidColorBrush(ParseColor(glyphBgHex));
+                padBrush.Freeze();
+                var bg = new Rect(x - pad, y - pad, box + 2 * pad, box + 2 * pad);
+                dc.DrawRoundedRectangle(padBrush, null, bg, pad, pad);
+            }
             dc.PushTransform(new MatrixTransform(fit));
             dc.DrawGeometry(brush, null, glyph);
             dc.Pop();
@@ -812,7 +1090,7 @@ public partial class MainWindow : Window
     }
 
     private static string EmbedGlyphInSvg(
-        string svg, string fontPath, string text, string glyphHex, double sizePercent)
+        string svg, string fontPath, string text, string glyphHex, string? glyphBgHex, double sizePercent)
     {
         (double w, double h) = ReadSvgDimensions(svg);
         double box = Math.Min(w, h) * (sizePercent / 100.0);
@@ -824,9 +1102,13 @@ public partial class MainWindow : Window
         Matrix fit = FitMatrix(glyph.Bounds, x, y, box);
         string pathData = GeometryToSvgPath(glyph);
 
+        string padRect = glyphBgHex == null
+            ? string.Empty
+            : $"<rect x=\"{F(x - pad)}\" y=\"{F(y - pad)}\" width=\"{F(box + 2 * pad)}\" " +
+              $"height=\"{F(box + 2 * pad)}\" rx=\"{F(pad)}\" ry=\"{F(pad)}\" fill=\"{glyphBgHex}\"/>";
+
         string overlay =
-            $"<rect x=\"{F(x - pad)}\" y=\"{F(y - pad)}\" width=\"{F(box + 2 * pad)}\" " +
-            $"height=\"{F(box + 2 * pad)}\" rx=\"{F(pad)}\" ry=\"{F(pad)}\" fill=\"#FFFFFF\"/>" +
+            padRect +
             $"<g transform=\"matrix({F(fit.M11)} {F(fit.M12)} {F(fit.M21)} {F(fit.M22)} " +
             $"{F(fit.OffsetX)} {F(fit.OffsetY)})\">" +
             $"<path d=\"{pathData}\" fill=\"{glyphHex}\" fill-rule=\"nonzero\"/></g>";
@@ -919,8 +1201,9 @@ public partial class MainWindow : Window
 
     private double GetLogoSizePercent()
     {
-        if (!double.TryParse(LogoSizeTextBox.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double value)
-            && !double.TryParse(LogoSizeTextBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+        TextBox src = CenterMode == 2 ? LogoSizeTextBox : ImageSizeTextBox;
+        if (!double.TryParse(src.Text, NumberStyles.Float, CultureInfo.CurrentCulture, out double value)
+            && !double.TryParse(src.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
             throw new InvalidOperationException("Logo size must be a number.");
         if (value < 5 || value > 40)
             throw new InvalidOperationException("Logo size should be between 5% and 40% so the code stays scannable.");
@@ -1030,6 +1313,9 @@ public sealed class UrlParamJson
 
     /// <summary>When true (the default), the parameter is left out of the URL if its value is empty.</summary>
     public bool? OmitIfEmpty { get; set; }
+
+    /// <summary>Force this field to span the full width of the two-column layout.</summary>
+    public bool? Wide { get; set; }
 
     /// <summary>Flattens <see cref="Default"/> to a list of strings (empty, one, or many).</summary>
     public List<string> ResolveDefaultValues()
