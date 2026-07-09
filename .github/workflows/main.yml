@@ -1,27 +1,42 @@
 name: Build & Release
 
+# Release-triggered. Create the GitHub Release (with your own notes) in the UI
+# and publish it — this workflow then builds, runs the full test suite, publishes
+# the self-contained exe, attests build provenance, and attaches the packaged
+# zip + its SHA-256 to that release. A failing test stops everything before
+# publish. Manual runs (workflow_dispatch) build/test/attest without attaching.
+
 on:
   release:
     types: [published]
   workflow_dispatch:
 
 permissions:
-  contents: write        # attach assets to the release
-  id-token: write        # sign build provenance (OIDC)
-  attestations: write    # write the provenance attestation
+  contents: write      # attach assets to the release
+  id-token: write      # sign build provenance (OIDC)
+  attestations: write  # write the provenance attestation
+
+env:
+  DOTNET_VERSION: '10.0.x'                 # .NET 10 SDK: builds net10.0 AND parses .slnx (needs 9.0.200+)
+  SOLUTION_PATH: 'Crawler.slnx'            # solution (built + tested)
+  PROJECT_PATH: 'Crawler/Crawler.csproj'   # the app project (published)
+  APP_NAME: 'Crawler'
+  RUNTIME: 'win-x64'
+  CONFIGURATION: 'Release'
 
 jobs:
   build:
+    # Windows runner is REQUIRED: PublishReadyToRun cross-gen for win-x64 must run on Windows.
     runs-on: windows-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Compute version from release tag
         id: ver
@@ -31,35 +46,49 @@ jobs:
           if ($tag) { $v = $tag.TrimStart('v') } else { $v = "0.0.0" }
           "version=$v" >> $env:GITHUB_OUTPUT
 
+      # Full test suite first — a failing test stops the build before anything
+      # is published, attested, or attached.
+      - name: Test
+        run: dotnet test "${{ env.SOLUTION_PATH }}" -c ${{ env.CONFIGURATION }}
+
+      # Self-contained single-file publish, ReadyToRun, untrimmed — mirrors the VS
+      # FolderProfile. Trimming stays OFF: reflection-based JSON config breaks under trim.
       - name: Publish self-contained single-file exe (all of .NET bundled)
         run: >
-          dotnet publish QrCodeGenerator.csproj
-          -c Release
-          -r win-x64
+          dotnet publish "${{ env.PROJECT_PATH }}"
+          -c ${{ env.CONFIGURATION }}
+          -r ${{ env.RUNTIME }}
           --self-contained true
           -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:EnableCompressionInSingleFile=true
+          -p:PublishReadyToRun=true
+          -p:PublishTrimmed=false
           -p:Version=${{ steps.ver.outputs.version }}
           -o publish
 
-      - name: Stage exe + SHA256 checksum
+      # Drop debug symbols, fold in the licence/notice files (the app self-heals
+      # them at runtime too, but a downloader should see them without running
+      # anything), zip, then write a SHA-256 sidecar for the zip.
+      - name: Stage zip + SHA256 checksum
         shell: pwsh
         run: |
+          Get-ChildItem publish -Recurse -Filter *.pdb | Remove-Item -Force
+          if (Test-Path 'LICENSE.txt') { Copy-Item 'LICENSE.txt' publish/ }
+          if (Test-Path 'Crawler/licenses') { Copy-Item 'Crawler/licenses' publish/ -Recurse }
           New-Item -ItemType Directory -Force -Path release | Out-Null
-          Copy-Item publish/QrCodeGenerator.exe release/
-          $hash = (Get-FileHash release/QrCodeGenerator.exe -Algorithm SHA256).Hash.ToLower()
-          "$hash  QrCodeGenerator.exe" | Set-Content -Path release/QrCodeGenerator.exe.sha256 -Encoding ascii
+          $zip = "release/${{ env.APP_NAME }}-${{ env.RUNTIME }}.zip"
+          Compress-Archive -Path publish/* -DestinationPath $zip -Force
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  ${{ env.APP_NAME }}-${{ env.RUNTIME }}.zip" | Set-Content -Path "$zip.sha256" -Encoding ascii
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: release/QrCodeGenerator.exe
+          subject-path: release/${{ env.APP_NAME }}-${{ env.RUNTIME }}.zip
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: QrCodeGenerator-win-x64
+          name: ${{ env.APP_NAME }}-${{ env.RUNTIME }}
           path: release/*
 
       - name: Attach assets to the release
@@ -68,6 +97,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: >
           gh release upload ${{ github.event.release.tag_name }}
-          release/QrCodeGenerator.exe
-          release/QrCodeGenerator.exe.sha256
+          release/${{ env.APP_NAME }}-${{ env.RUNTIME }}.zip
+          release/${{ env.APP_NAME }}-${{ env.RUNTIME }}.zip.sha256
           --clobber
