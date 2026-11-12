@@ -1,6 +1,8 @@
-# QR Code Generator
+# QrCodeGenerator
 
-<img src="Assets/app.png" align="right" width="96" alt="QR Code Generator icon" />
+Turns URLs into QR codes as PNG or SVG, with a center glyph from any font, a color picker with contrast checking, batch export and a dark UI.
+
+<img src="Assets/app_256.png" align="right" width="96" alt="QR Code Generator icon" />
 
 A small Windows desktop app (WPF) that turns URLs into QR codes — with **PNG and SVG**
 output, vector **center glyphs pulled from any font**, a **color picker with contrast
@@ -79,9 +81,17 @@ with a SHA-256 checksum (`QrCodeGenerator.exe.sha256`).
   de-duplication so a double-click can't queue it twice.
 - Adjustable error-correction level (L/M/Q/H) and fully custom colors throughout.
 
+**Look & version**
+
+- **Shared dark theme** (HueTheme) with a dark title bar on every window and themed dialogs.
+  While a Windows contrast theme is on, the app hands its colors back to Windows. The QR
+  preview stays on paper white: a code is judged on the surface it will be printed on.
+- **Header** with the app version and, under it, the .NET SDK the exe was built with and the
+  runtime packed into it, so any copy shows which .NET it carries.
+
 ## Build from source
 
-Requires the [.NET 8 SDK](https://dotnet.microsoft.com/download) on Windows.
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) on Windows.
 
 ```bash
 dotnet run                 # build and launch
@@ -97,7 +107,7 @@ dotnet publish -c Release -r win-x64 --self-contained true ^
 ```
 
 Releases are built automatically by the GitHub Actions workflow in
-`.github/workflows/main.yml` when a release is published.
+`.github/workflows/release.yml` when a release is published.
 
 ## The URL schema (`url-schema.json`)
 

@@ -3,8 +3,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using HueThemeKit;
 
-namespace QrCodeGenerator;
+namespace QrCodeGenerator.Dialogs;
 
 public partial class SystemFontPickerWindow : Window
 {
@@ -21,6 +22,7 @@ public partial class SystemFontPickerWindow : Window
     public SystemFontPickerWindow()
     {
         InitializeComponent();
+        HueTitleBar.Attach(this);
         Enumerate();
         Populate(null);
     }
@@ -64,7 +66,7 @@ public partial class SystemFontPickerWindow : Window
         catch
         {
             // If system font enumeration is blocked, the list is simply empty;
-            // the user can still use Browse… on the main window.
+            // the user can still use Browse… in the font & glyph chooser.
         }
 
         _all.Sort((a, b) => string.Compare(a.Display, b.Display, StringComparison.OrdinalIgnoreCase));
@@ -91,7 +93,7 @@ public partial class SystemFontPickerWindow : Window
         }
 
         CountText.Text = _all.Count == 0
-            ? "No installed fonts found — use Browse… on the main window."
+            ? "No installed fonts found — use Browse… in the font & glyph chooser instead."
             : (q.Length > 0 ? $"{shown} of {_all.Count} fonts" : $"{_all.Count} fonts");
     }
 

@@ -1,10 +1,10 @@
-using System.Globalization;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using HueThemeKit;
+using QrCodeGenerator.Util;
 
-namespace QrCodeGenerator;
+namespace QrCodeGenerator.Dialogs;
 
 public partial class ColorPickerWindow : Window
 {
@@ -25,14 +25,15 @@ public partial class ColorPickerWindow : Window
     public ColorPickerWindow(string initialHex, string? pairHex = null, string? pairLabel = null)
     {
         InitializeComponent();
+        HueTitleBar.Attach(this);
 
-        _pair = TryParse(pairHex, out Color pc) ? pc : (Color?)null;
+        _pair = ColorHex.TryParse(pairHex, out Color pc) ? pc : (Color?)null;
         _pairLabel = pairLabel ?? "the other color";
         ContrastPanel.Visibility = _pair.HasValue ? Visibility.Visible : Visibility.Collapsed;
 
         BuildPalette();
 
-        Color initial = TryParse(initialHex, out Color c) ? c : Colors.Black;
+        Color initial = ColorHex.TryParse(initialHex, out Color c) ? c : Colors.Black;
         SetColor(initial, updateHex: true, updateRgb: true);
     }
 
@@ -40,11 +41,11 @@ public partial class ColorPickerWindow : Window
     {
         foreach (string hex in Presets)
         {
-            TryParse(hex, out Color col);
+            ColorHex.TryParse(hex, out Color col);
             var brush = new SolidColorBrush(col); brush.Freeze();
             var b = new Button
             {
-                Style = (Style)FindResource("Swatch"),
+                Style = (Style)FindResource("Qr.Swatch"),
                 Width = 34,
                 Height = 30,
                 Margin = new Thickness(3),
@@ -52,6 +53,8 @@ public partial class ColorPickerWindow : Window
                 Tag = hex,
                 ToolTip = hex,
             };
+            // The face is the colour, with no word on it: the hex is its name for assistive tech.
+            System.Windows.Automation.AutomationProperties.SetName(b, hex);
             b.Click += (_, _) => SetColor(col, updateHex: true, updateRgb: true);
             PalettePanel.Children.Add(b);
         }
@@ -65,7 +68,7 @@ public partial class ColorPickerWindow : Window
             var brush = new SolidColorBrush(c); brush.Freeze();
             PreviewSwatch.Background = brush;
 
-            if (updateHex) HexBox.Text = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            if (updateHex) HexBox.Text = ColorHex.Format(c);
             if (updateRgb)
             {
                 RBox.Text = c.R.ToString();
@@ -122,7 +125,7 @@ public partial class ColorPickerWindow : Window
     private void HexBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (_sync) return;
-        if (TryParse(HexBox.Text, out Color c))
+        if (ColorHex.TryParse(HexBox.Text, out Color c))
             SetColor(c, updateHex: false, updateRgb: true);
     }
 
@@ -139,16 +142,15 @@ public partial class ColorPickerWindow : Window
 
     private void UseButton_Click(object sender, RoutedEventArgs e)
     {
-        if (TryParse(HexBox.Text, out Color c))
+        if (ColorHex.TryParse(HexBox.Text, out Color c))
         {
-            SelectedHex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            SelectedHex = ColorHex.Format(c);
             DialogResult = true;
             Close();
         }
         else
         {
-            MessageBox.Show("That isn't a valid color. Use a 6-digit hex like #1D4ED8.",
-                "Pick a color", MessageBoxButton.OK, MessageBoxImage.Warning);
+            HueMessage.Show(this, "Pick a color", "That isn't a valid color. Use a 6-digit hex like #1D4ED8.");
         }
     }
 
@@ -156,20 +158,5 @@ public partial class ColorPickerWindow : Window
     {
         DialogResult = false;
         Close();
-    }
-
-    private static bool TryParse(string? hex, out Color color)
-    {
-        color = Colors.Black;
-        if (string.IsNullOrWhiteSpace(hex)) return false;
-        string h = hex.Trim();
-        if (!h.StartsWith("#")) h = "#" + h;
-        if (!Regex.IsMatch(h, "^#[0-9a-fA-F]{6}$")) return false;
-        h = h.TrimStart('#');
-        color = Color.FromRgb(
-            byte.Parse(h.Substring(0, 2), NumberStyles.HexNumber),
-            byte.Parse(h.Substring(2, 2), NumberStyles.HexNumber),
-            byte.Parse(h.Substring(4, 2), NumberStyles.HexNumber));
-        return true;
     }
 }

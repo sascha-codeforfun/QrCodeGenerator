@@ -4,8 +4,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Win32;
+using HueThemeKit;
+using QrCodeGenerator.Rendering;
+using QrCodeGenerator.Util;
 
-namespace QrCodeGenerator;
+namespace QrCodeGenerator.Dialogs;
 
 /// <summary>
 /// Combined font + glyph chooser. Works on local copies of the font path and character
@@ -18,10 +21,9 @@ public partial class GlyphPickerWindow : Window
 
     private readonly List<Entry> _entries = new();
     private readonly List<Entry> _filtered = new();
-    private readonly Brush _tileBrush;
 
     private string? _fontPath;
-    private MainWindow.LoadedFont? _font;
+    private LoadedFont? _font;
     private int _page;
 
     /// <summary>Chosen font file path (null = none), valid after OK.</summary>
@@ -32,12 +34,17 @@ public partial class GlyphPickerWindow : Window
 
     private readonly record struct Entry(char Ch, ushort GlyphIndex, int CodePoint);
 
+    /// <summary>
+    /// The colour glyphs are drawn in: the theme's text colour, read when a glyph is drawn so it
+    /// is the current one (a Windows contrast theme swaps it). Glyphs already on screen keep the
+    /// colour they were drawn with until the page is drawn again.
+    /// </summary>
+    private Brush GlyphBrush => (Brush)FindResource("Brush.Text");
+
     public GlyphPickerWindow(string? initialFontPath, string initialChars)
     {
         InitializeComponent();
-
-        _tileBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xEA, 0xED));
-        _tileBrush.Freeze();
+        HueTitleBar.Attach(this);
 
         CharsBox.Text = initialChars ?? string.Empty;
 
@@ -89,7 +96,7 @@ public partial class GlyphPickerWindow : Window
     {
         try
         {
-            MainWindow.LoadedFont loaded = MainWindow.LoadFontRobust(path);
+            LoadedFont loaded = GlyphFonts.LoadRobust(path);
             _font?.Dispose();
             _font = loaded;
             _fontPath = path;
@@ -102,8 +109,7 @@ public partial class GlyphPickerWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Choose font & glyph",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            HueMessage.Show(IsLoaded ? this : null, "Choose font & glyph", ex.Message);
         }
     }
 
@@ -178,6 +184,8 @@ public partial class GlyphPickerWindow : Window
                 Tag = e.Ch,
                 ToolTip = $"U+{e.CodePoint:X4}",
             };
+            // A tile shows a glyph and no word: its code point is its name for assistive tech.
+            System.Windows.Automation.AutomationProperties.SetName(tile, $"U+{e.CodePoint:X4}");
             tile.Click += Tile_Click;
             GlyphPanel.Children.Add(tile);
         }
@@ -199,8 +207,8 @@ public partial class GlyphPickerWindow : Window
             Rect b = pg.Bounds;
             if (b.IsEmpty || b.Width <= 0 || b.Height <= 0) return null;
             pg.FillRule = FillRule.Nonzero;
-            var di = new DrawingImage(new GeometryDrawing(_tileBrush, null, pg));
-            di.Freeze();
+            var di = new DrawingImage(new GeometryDrawing(GlyphBrush, null, pg));
+            if (di.CanFreeze) di.Freeze();
             return di;
         }
         catch
@@ -231,10 +239,10 @@ public partial class GlyphPickerWindow : Window
         }
         try
         {
-            PathGeometry geo = MainWindow.BuildGlyphGeometry(_font.Typeface, CharsBox.Text);
+            PathGeometry geo = GlyphFonts.BuildGeometry(_font.Typeface, CharsBox.Text);
             geo.FillRule = FillRule.Nonzero;
-            var di = new DrawingImage(new GeometryDrawing(_tileBrush, null, geo));
-            di.Freeze();
+            var di = new DrawingImage(new GeometryDrawing(GlyphBrush, null, geo));
+            if (di.CanFreeze) di.Freeze();
             PreviewImage.Source = di;
         }
         catch
